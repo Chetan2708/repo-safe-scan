@@ -44,5 +44,9 @@
     "ts-jest": "^29.2.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
-  }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
 }
