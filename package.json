@@ -1,0 +1,46 @@
+{
+  "name": "repo-safe-scan",
+  "version": "1.0.0",
+  "description": "Audit package.json scripts, VSCode tasks, Makefiles and shell scripts for supply-chain attack patterns — catches what dependency scanners miss.",
+  "license": "MIT",
+  "keywords": [
+    "security",
+    "supply-chain",
+    "audit",
+    "package.json",
+    "vscode",
+    "malware",
+    "preinstall",
+    "postinstall",
+    "static-analysis"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "dist/src/scanner.js",
+  "bin": {
+    "repo-safe-scan": "./dist/bin/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "node -e \"require('fs').rmSync('./dist', { recursive: true, force: true })\"",
+    "start": "npm run build && node dist/bin/cli.js",
+    "test": "jest --config jest.config.ts",
+    "test:watch": "jest --config jest.config.ts --watch",
+    "test:coverage": "jest --config jest.config.ts --coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^14.0.3",
+    "glob": "^13.0.6"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.13.10",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
+  }
+}

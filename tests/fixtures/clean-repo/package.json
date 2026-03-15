@@ -1,0 +1,11 @@
+{
+  "name": "clean-repo",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "jest",
+    "lint": "eslint src",
+    "start": "node dist/index.js",
+    "preinstall": "echo 'Checking Node version'"
+  }
+}
