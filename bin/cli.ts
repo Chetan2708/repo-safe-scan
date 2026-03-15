@@ -4,6 +4,7 @@ import { program } from "commander";
 import chalk from "chalk";
 import { scanRepo } from "../src/scanner";
 import type { Finding } from "../src/types";
+
 // Resolve package.json relative to the compiled file's location at runtime
 // Works correctly from both bin/ (ts-node) and dist/bin/ (node)
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -46,8 +47,9 @@ program
     "Minimum severity to report: medium | high | critical",
     "medium"
   )
+  .option("--include-node-modules", "Scan dependencies in node_modules for malicious lifecycle hooks")
   .option("--no-color", "Disable colored output")
-  .action(async (repoPath: string, options: { json?: boolean; severity: string }) => {
+  .action(async (repoPath: string, options: { json?: boolean; severity: string; includeNodeModules?: boolean }) => {
     const minSeverity = options.severity.toLowerCase();
 
     if (!isSeverity(minSeverity)) {
@@ -62,7 +64,7 @@ program
     // ── Run Scan ─────────────────────────────────────────────────────────
     let result: Awaited<ReturnType<typeof scanRepo>>;
     try {
-      result = await scanRepo(repoPath);
+      result = await scanRepo(repoPath, { includeNodeModules: options.includeNodeModules });
     } catch (err) {
       console.error(
         chalk.red(`\nFatal error during scan: ${(err as Error).message}`)
@@ -70,7 +72,7 @@ program
       process.exit(2);
     }
 
-    const { findings } = result;
+    const { findings, riskScore } = result;
 
     // ── Filter by severity ────────────────────────────────────────────────
     const minScore = SEVERITY_ORDER[minSeverity];
@@ -91,8 +93,7 @@ program
     // ── JSON output ───────────────────────────────────────────────────────
     if (options.json) {
       process.stdout.write(
-        JSON.stringify({ scannedPath: repoPath, findings: filtered }, null, 2) +
-          "\n"
+        JSON.stringify({ scannedPath: repoPath, riskScore, findings: filtered }, null, 2) + "\n"
       );
       if (filtered.length > 0) process.exitCode = 1;
       return;
@@ -110,6 +111,9 @@ program
         chalk.green("  ✔ No suspicious patterns found") +
           chalk.gray(` (severity >= ${minSeverity})\n`)
       );
+      
+      console.log(chalk.gray(`  ${"═".repeat(50)}`));
+      console.log(`  ${chalk.bold("Repository Risk Score:")} ${chalk.green.bold(riskScore.score + " / 10")}  ${chalk.bgGreen.black.bold(" " + riskScore.label + " ")}\n`);
       return;
     }
 
@@ -151,6 +155,10 @@ program
         if (finding.detail) {
           console.log(`  ${chalk.gray("Detail:     ")} ${finding.detail}`);
         }
+        
+        if (finding.lifecycleMessage) {
+          console.log(`\n  ${chalk.yellow.dim("   " + finding.lifecycleMessage)}`);
+        }
       }
 
       console.log();
@@ -178,6 +186,23 @@ program
           : "")
     );
     console.log(chalk.gray(`  Scanned path: ${repoPath}`) + "\n");
+
+    // ── Risk Score ────────────────────────────────────────────────────────
+    let rsColor = chalk.green;
+    if (riskScore.label === "CRITICAL") rsColor = chalk.red;
+    else if (riskScore.label === "HIGH") rsColor = chalk.yellow;
+    else if (riskScore.label === "MODERATE") rsColor = chalk.cyan;
+
+    const barLength = 20;
+    const filledLength = Math.round((riskScore.score / 10) * barLength);
+    const filled = "█".repeat(filledLength);
+    const empty = "░".repeat(barLength - filledLength);
+    const bar = rsColor(filled) + chalk.gray(empty);
+
+    console.log(chalk.bold.white(`  ╔═════════════════════════════════════════╗`));
+    console.log(chalk.bold.white(`  ║  Repository Risk Score:  ${rsColor.bold(riskScore.score.toFixed(1) + " / 10".padEnd(5))}     ║`));
+    console.log(chalk.bold.white(`  ║  ${bar}  ${rsColor.bold(riskScore.label.padEnd(8))} ║`));
+    console.log(chalk.bold.white(`  ╚═════════════════════════════════════════╝\n`));
 
     process.exitCode = 1;
   });

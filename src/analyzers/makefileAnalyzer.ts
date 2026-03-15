@@ -1,12 +1,10 @@
 import fs from "fs";
 import path from "path";
 import rules from "../rules/rules";
-import type { Finding } from "../types";
+import { normalizeCommand } from "../utils/normalizeCommand";
+import type { Finding, ScanOptions } from "../types";
 
-/**
- * Analyze a Makefile for suspicious recipe commands.
- */
-export async function makefileAnalyzer(repoPath: string): Promise<Finding[]> {
+export async function makefileAnalyzer(repoPath: string, opts?: ScanOptions): Promise<Finding[]> {
   const findings: Finding[] = [];
   const filePath = path.resolve(repoPath, "Makefile");
 
@@ -39,21 +37,21 @@ export async function makefileAnalyzer(repoPath: string): Promise<Finding[]> {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
 
-    // Detect target declarations
     const targetMatch = line.match(/^([a-zA-Z0-9_.\-/]+)\s*:/);
     if (targetMatch) {
       currentTarget = targetMatch[1]!;
       continue;
     }
 
-    // Makefile recipe lines start with a tab character
     if (!line.startsWith("\t")) continue;
 
     const command = line.trimStart();
     if (!command) continue;
 
+    const normalizedCmd = normalizeCommand(command);
+
     for (const rule of rules) {
-      if (rule.regex.test(command)) {
+      if (rule.pattern && rule.pattern.test(normalizedCmd)) {
         findings.push({
           file: "Makefile",
           scriptName: `target: ${currentTarget}`,

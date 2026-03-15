@@ -2,12 +2,10 @@ import fs from "fs";
 import path from "path";
 import { glob } from "glob";
 import rules from "../rules/rules";
-import type { Finding } from "../types";
+import { normalizeCommand } from "../utils/normalizeCommand";
+import type { Finding, ScanOptions } from "../types";
 
-/**
- * Analyze shell scripts (*.sh, *.bash) in the repository for suspicious patterns.
- */
-export async function shellScriptAnalyzer(repoPath: string): Promise<Finding[]> {
+export async function shellScriptAnalyzer(repoPath: string, opts?: ScanOptions): Promise<Finding[]> {
   const findings: Finding[] = [];
   const resolvedRoot = path.resolve(repoPath);
 
@@ -56,8 +54,10 @@ export async function shellScriptAnalyzer(repoPath: string): Promise<Finding[]> 
       const line = lines[i]!.trim();
       if (!line || line.startsWith("#")) continue;
 
+      const normalizedCmd = normalizeCommand(line);
+
       for (const rule of rules) {
-        if (rule.regex.test(line)) {
+        if (rule.pattern && rule.pattern.test(normalizedCmd)) {
           findings.push({
             file: relFile,
             scriptName: `line ${i + 1}`,

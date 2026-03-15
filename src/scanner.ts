@@ -1,29 +1,20 @@
-import { packageAnalyzer } from "./analyzers/packageAnalyzer";
-import { vscodeAnalyzer } from "./analyzers/vscodeAnalyzer";
-import { makefileAnalyzer } from "./analyzers/makefileAnalyzer";
-import { shellScriptAnalyzer } from "./analyzers/shellScriptAnalyzer";
-import type { ScanResult } from "./types";
+import { analyzers, optionalAnalyzers } from "./analyzers/index";
+import { calculateRiskScore } from "./scoring";
+import type { ScanResult, ScanOptions } from "./types";
 
 /**
  * Orchestrate all analyzers and return a unified result object.
  */
-export async function scanRepo(repoPath: string): Promise<ScanResult> {
-  const [pkgFindings, vscodeFindings, makefileFindings, shellFindings] =
-    await Promise.all([
-      packageAnalyzer(repoPath),
-      vscodeAnalyzer(repoPath),
-      makefileAnalyzer(repoPath),
-      shellScriptAnalyzer(repoPath),
-    ]);
+export async function scanRepo(repoPath: string, opts: ScanOptions = {}): Promise<ScanResult> {
+  const activeAnalyzers = [...analyzers];
+  if (opts.includeNodeModules) {
+    const nmAnalyzer = optionalAnalyzers["include-node-modules"];
+    if (nmAnalyzer) activeAnalyzers.push(nmAnalyzer);
+  }
 
-  const findings = [
-    ...pkgFindings,
-    ...vscodeFindings,
-    ...makefileFindings,
-    ...shellFindings,
-  ];
-
+  const results = await Promise.all(activeAnalyzers.map((a) => a(repoPath, opts)));
+  const findings = results.flat();
   const scannedFiles = [...new Set(findings.map((f) => f.file))];
 
-  return { findings, scannedFiles };
+  return { findings, scannedFiles, riskScore: calculateRiskScore(findings) };
 }
