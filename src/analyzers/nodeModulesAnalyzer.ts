@@ -18,9 +18,45 @@ interface PackageJson {
 }
 
 /**
- * Scans dependencies in node_modules for malicious lifecycle scripts.
+ * Extract the top-level package name from a node_modules file path.
+ * e.g. "node_modules/@scope/pkg/package.json" → "@scope/pkg"
+ *      "node_modules/pkg/package.json"         → "pkg"
+ *      "node_modules/pkg/node_modules/sub/package.json" → "sub"
  */
-export async function nodeModulesAnalyzer(repoPath: string): Promise<Finding[]> {
+function extractPkgName(filePath: string, nmPath: string): string | null {
+  const rel = path.relative(nmPath, filePath).replace(/\\/g, "/");
+  // rel is like "pkg/package.json" or "@scope/pkg/package.json"
+  // or nested: "parent/node_modules/child/package.json"
+  // We want the *immediate* package — the last node_modules segment's child
+  const parts = rel.split("/");
+
+  // Walk backwards to find the last node_modules boundary, or use root
+  let startIdx = 0;
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (parts[i] === "node_modules") {
+      startIdx = i + 1;
+      break;
+    }
+  }
+
+  if (startIdx >= parts.length) return null;
+
+  // Scoped package: starts with @
+  if (parts[startIdx]?.startsWith("@") && parts[startIdx + 1]) {
+    return `${parts[startIdx]}/${parts[startIdx + 1]}`;
+  }
+  return parts[startIdx] ?? null;
+}
+
+/**
+ * Scans dependencies in node_modules for malicious lifecycle scripts.
+ * Optionally accepts a set of newly added dependency names to flag.
+ */
+export async function nodeModulesAnalyzer(
+  repoPath: string,
+  _opts?: unknown,
+  newDeps?: Set<string>,
+): Promise<Finding[]> {
   const findings: Finding[] = [];
   const nmPath = path.resolve(repoPath, "node_modules");
 
@@ -47,6 +83,8 @@ export async function nodeModulesAnalyzer(repoPath: string): Promise<Finding[]> 
     }
 
     const scripts = pkg.scripts ?? {};
+    const pkgName = extractPkgName(filePath, nmPath);
+    const isNewDep = pkgName ? (newDeps?.has(pkgName) ?? false) : false;
 
     for (const [scriptName, originalCommand] of Object.entries(scripts)) {
       if (typeof originalCommand !== "string") continue;
@@ -57,6 +95,7 @@ export async function nodeModulesAnalyzer(repoPath: string): Promise<Finding[]> 
       const normalizedCmd = normalizeCommand(originalCommand);
       const relPath = path.relative(repoPath, filePath);
 
+      let matched = false;
       for (const rule of rules) {
         if (rule.pattern && rule.pattern.test(normalizedCmd)) {
           findings.push({
@@ -72,9 +111,30 @@ export async function nodeModulesAnalyzer(repoPath: string): Promise<Finding[]> 
             lifecycle: true,
             lifecycleMessage: "⚠ This dependency script ran automatically during `npm install`.",
             detail: null,
+            isNewDep,
           });
+          matched = true;
           break;
         }
+      }
+
+      // Even if no malicious pattern matched, flag newly added deps with lifecycle hooks
+      if (!matched && isNewDep && isLifecycle) {
+        findings.push({
+          file: relPath,
+          scriptName,
+          command: originalCommand,
+          rule: {
+            id: "newly-added-lifecycle",
+            description: "Newly added dependency contains a lifecycle hook",
+            severity: "high",
+            category: "supply-chain",
+          },
+          lifecycle: true,
+          lifecycleMessage: "⚠ This is a newly added dependency with an auto-executing lifecycle hook. Review carefully.",
+          detail: `Package "${pkgName}" was recently added and has a "${scriptName}" script.`,
+          isNewDep: true,
+        });
       }
     }
   }

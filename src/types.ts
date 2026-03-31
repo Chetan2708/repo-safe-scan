@@ -25,6 +25,7 @@ export interface Finding {
   lifecycle: boolean;
   detail: string | null;
   lifecycleMessage?: string;
+  isNewDep?: boolean;
 }
 
 export interface RiskScore {
@@ -35,6 +36,7 @@ export interface RiskScore {
     high: number;
     medium: number;
     lifecycleBonus: number;
+    newDepBonus: number;
   };
 }
 

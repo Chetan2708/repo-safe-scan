@@ -5,6 +5,7 @@ export function calculateRiskScore(findings: Finding[]): RiskScore {
   let highCount = 0;
   let mediumCount = 0;
   let lifecycleBonusPoints = 0;
+  let newDepBonusPoints = 0;
 
   for (const f of findings) {
     if (f.rule.severity === "critical") criticalCount++;
@@ -16,13 +17,18 @@ export function calculateRiskScore(findings: Finding[]): RiskScore {
       else if (f.rule.severity === "high") lifecycleBonusPoints += 10;
       // medium lifecycle doesn't get explicit bonus in the plan, but we can add 0 or adjust if needed.
     }
+
+    if (f.isNewDep) {
+      newDepBonusPoints += 5;
+    }
   }
 
   const rawScore = 
     (criticalCount * 25) + 
     (highCount * 10) + 
     (mediumCount * 4) + 
-    lifecycleBonusPoints;
+    lifecycleBonusPoints +
+    newDepBonusPoints;
 
   const score = Math.min(rawScore / 10, 10);
   const formattedScore = Number(score.toFixed(1));
@@ -44,6 +50,7 @@ export function calculateRiskScore(findings: Finding[]): RiskScore {
       high: highCount,
       medium: mediumCount,
       lifecycleBonus: lifecycleBonusPoints,
+      newDepBonus: newDepBonusPoints,
     }
   };
 }

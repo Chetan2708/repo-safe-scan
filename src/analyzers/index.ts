@@ -6,7 +6,7 @@ import { shellScriptAnalyzer } from "./shellScriptAnalyzer";
 import { jsAstAnalyzer } from "./jsAstAnalyzer";
 import { nodeModulesAnalyzer } from "./nodeModulesAnalyzer";
 
-export type Analyzer = (path: string, opts?: ScanOptions) => Promise<Finding[]>;
+export type Analyzer = (path: string, opts?: ScanOptions, newDeps?: Set<string>) => Promise<Finding[]>;
 
 export const analyzers: Analyzer[] = [
   packageAnalyzer,

@@ -81,12 +81,14 @@ program
       return (SEVERITY_ORDER[sev] ?? 0) >= minScore;
     });
 
-    // ── Sort: critical → high → medium, lifecycle first ───────────────────
+    // ── Sort: critical → high → medium, new deps first, lifecycle first ────
     filtered.sort((a: Finding, b: Finding) => {
       const sevDiff =
         (SEVERITY_ORDER[b.rule.severity as Severity] ?? 0) -
         (SEVERITY_ORDER[a.rule.severity as Severity] ?? 0);
       if (sevDiff !== 0) return sevDiff;
+      // New deps surface first within same severity
+      if (a.isNewDep !== b.isNewDep) return b.isNewDep ? 1 : -1;
       return b.lifecycle ? 1 : -1;
     });
 
@@ -135,8 +137,11 @@ program
         const lifecycleBadge = finding.lifecycle
           ? chalk.bgMagenta.white.bold(" LIFECYCLE ") + " "
           : "";
+        const newDepBadge = finding.isNewDep
+          ? chalk.bgGreen.black.bold(" 🆕 NEW DEP ") + " "
+          : "";
 
-        console.log(`\n  ${icon} ${lifecycleBadge}${colorFn(finding.rule.id)}`);
+        console.log(`\n  ${icon} ${newDepBadge}${lifecycleBadge}${colorFn(finding.rule.id)}`);
         console.log(`  ${chalk.gray("Description:")} ${finding.rule.description}`);
         console.log(`  ${chalk.gray("Category:   ")} ${finding.rule.category}`);
 
@@ -169,6 +174,7 @@ program
     const highCount = filtered.filter((f) => f.rule.severity === "high").length;
     const medCount  = filtered.filter((f) => f.rule.severity === "medium").length;
     const lifecycleCount = filtered.filter((f) => f.lifecycle).length;
+    const newDepCount = filtered.filter((f) => f.isNewDep).length;
 
     console.log(chalk.gray("  " + "═".repeat(60)));
     console.log(
@@ -182,6 +188,12 @@ program
           ? "  " +
             chalk.magenta.bold(
               `(${lifecycleCount} auto-executed lifecycle hooks)`
+            )
+          : "") +
+        (newDepCount > 0
+          ? "  " +
+            chalk.green.bold(
+              `(${newDepCount} in newly added deps)`
             )
           : "")
     );
