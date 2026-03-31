@@ -1,16 +1,12 @@
-<div align="center">
-
 # 🛡 repo-safe-scan
 
-### Stop supply-chain attacks before they execute.
+**Stop supply-chain attacks before they execute.**
 
 Audit `package.json` scripts, VSCode tasks, Makefiles and shell scripts for malicious patterns — **before you `npm install`.**
 
-[![npm version](https://img.shields.io/npm/v/repo-safe-scan?color=%2300b894&style=flat-square)](https://www.npmjs.com/package/repo-safe-scan)
-[![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=flat-square)](https://nodejs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
-
-</div>
+![npm version](https://img.shields.io/npm/v/repo-safe-scan?color=%2300b894&style=flat-square)
+![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=flat-square)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 
 ---
 
@@ -280,9 +276,6 @@ MIT © 2026
 
 ---
 
-<div align="center">
 **Stop trusting `npm install`. Start using `repo-safe-install`.**
 
 [![npm](https://img.shields.io/npm/v/repo-safe-scan?color=%2300b894&style=for-the-badge)](https://www.npmjs.com/package/repo-safe-scan)
-
-</div>
